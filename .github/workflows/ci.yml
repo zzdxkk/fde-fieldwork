@@ -1,0 +1,69 @@
+name: cross-platform
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 主矩阵：3 个系统 × 3 个 Python 版本，装齐可选依赖，跑完整的 smoke
+  matrix:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: 安装可选依赖（造样例 PDF 用）
+        run: python -m pip install --quiet reportlab
+      - name: 跨平台自检（测试 + 跑程序 + 校验关键数字 + 校验探测值）
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
+        run: python tools/smoke.py
+
+  # 最小依赖矩阵：故意不装 reportlab，验证「缺库时是跳过还是崩」
+  minimal:
+    name: ${{ matrix.os }} / 无 reportlab
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: 确保 reportlab 确实不存在
+        run: python -m pip uninstall -y reportlab
+      - name: 断言缺库状态成立（装了就不算验证到降级路径）
+        run: python -c "import importlib.util,sys; sys.exit(0 if importlib.util.find_spec('reportlab') is None else 1)"
+      - name: 跨平台自检（无 reportlab）
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: utf-8
+        run: python tools/smoke.py
+
+  # 静态检查：平台相关函数的三条分支有没有被删掉
+  platform-lint:
+    name: 平台分支体检
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: 检查 macOS / Linux / Windows 分支是否齐全
+        run: python tools/lint_platform.py

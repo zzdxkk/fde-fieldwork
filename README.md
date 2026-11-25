@@ -1,5 +1,7 @@
 # FDE 现场交付 · 五个小原型
 
+![cross-platform](https://github.com/zzdxkk/fde-fieldwork/actions/workflows/ci.yml/badge.svg)
+
 不是产品，是五个能在断网机器上跑起来的小东西，用来回答一句最常被问到的话：**你说的"交付"，具体长什么样？**
 
 每个目录都是「一个场景 + 一份实跑报告 + 一套交付文档 + 一组单元测试」，代码以 Python 标准库为主，`python3 app/main.py` 就能出报告。
@@ -36,15 +38,45 @@ cd <任一目录> && python3 -m unittest discover -s tests
 |---|---|---|
 | macOS（开发机） | 2026-11-25 | 5 套全部跑通，24 个单元测试全绿 |
 | Windows 10 + Python 3.13（干净机器，从本仓库下载后直接跑，未改代码） | 2026-11-25 | 先失败、修完再全绿，见下 |
+| GitHub Actions（Ubuntu / Windows / macOS × Python 3.10 / 3.13 / 3.14） | 每次 push | `tools/smoke.py` 全面自检，另有三个「无 reportlab」作业 |
 
 Windows 那台机器上暴露了两个只在换机时才出现的问题，都已修：
 
 1. `deploy-preflight` 的内存检查返回 `0.0` —— 原来只读了 macOS 的 `sysctl` 和 Linux 的 `/proc/meminfo`，Windows 没有这两样。改成 Win32 `GlobalMemoryStatusEx` 后读到 15.9GB。顺带补了 `w32tm`（时间源）和 `netsh advfirewall`（防火墙）两条 Windows 分支。
 2. `contract-check` 的测试在没装 reportlab 的机器上整包导入失败 —— 因为测试文件顶层就 `import make_pdfs`。改成按用例懒加载、缺库时 skip 那 2 个造 PDF 的用例，其余 4 个照常跑。
 
-修完的结果：24 个用例在 Windows 上也全绿；装上 reportlab 后，合同字段抽取在本机重新生成样例 PDF 再抽取，仍是 96.3%（26/27）。01/02/04 的指标（65.1%、81.8/100/33.3、90.0/82.5/57.5）与 macOS 完全一致，说明这些逻辑不依赖平台。
+修完的结果：当时那 24 个用例在 Windows 上也全绿；装上 reportlab 后，合同字段抽取在本机重新生成样例 PDF 再抽取，仍是 96.3%（26/27）。01/02/04 的指标（65.1%、81.8/100/33.3、90.0/82.5/57.5）与 macOS 完全一致，说明这些逻辑不依赖平台。
 
 没在 Windows 上重跑的：`deploy-preflight` 的压测（本机是虚拟桌面，测出来的数字没有交付参考价值，仍以 macOS 那组为准）。
+
+之后又补了 7 条「探测值合理性」断言（`deploy-preflight/tests/test_probe.py`），全仓库现在是 31 个用例——只断言「不崩溃」的测试抓不住静默返回 0，必须断言「值在合理范围内」。这 31 个用例由下面的三平台 CI 逐次复核。
+
+## 跨平台验证（换机不靠运气）
+
+一条命令，在这台机器上把五套原型全跑一遍，并核对关键数字与探测值：
+
+```bash
+python tools/smoke.py            # 五套全跑
+python tools/smoke.py --only 03   # 只跑一套
+python tools/smoke.py --list      # 只列目录
+```
+
+它做四件事：跑每套的单元测试（用例数低于下限直接判失败，防止「整包导入失败」被误读成「没有测试」）；跑每套程序；比对报告里的关键数字；把 `deploy-preflight` 的探测函数单独拉出来看有没有返回 0 或空串。输出里会带本机的系统、架构、Python 版本。
+
+CI 上同一份脚本跑 9 个组合，另有 3 个「故意不装 reportlab」的作业：
+
+| 系统 | 装了 reportlab | 不装 reportlab |
+|---|---|---|
+| Ubuntu | 测试 + 五套程序 + 数字校验 | 造 PDF 的 2 个用例跳过，报告写「未执行」 |
+| Windows | 同上 | 同上 |
+| macOS | 同上 | 同上 |
+
+还有一个静态作业 `tools/lint_platform.py`：内存、时间源、防火墙这几项，只要有人删掉某一个系统的分支，CI 直接红。
+
+两条跨平台约定，写在这里是为了以后不再犯：
+
+1. **取不到就写「未检测」，不返回 0 / 空串 / False。** 体检报告里出现 `0.0GB` 比留空更危险——它会被当成「客户机器真的没有」。`check_env.py` 现在把内存为 0 的情况渲染成「未检测」，报告头部也印上运行环境（系统 / 架构 / Python 版本），方便不同机器出的报告互相区分。
+2. **可选依赖只在用例里懒加载。** 一个只用来造测试样例的库，不该决定整套测试能不能跑。
 
 ## 关于数字
 
