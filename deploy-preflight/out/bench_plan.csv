@@ -1,0 +1,6 @@
+case,concurrency,prompt_tokens,max_new_tokens,target_first_p95_ms,target_total_p95_ms,status
+chat-1,1,512,256,2000,8000,实测
+chat-2,2,512,256,2000,8000,实测
+chat-4,4,512,256,2000,8000,实测
+chat-8,8,512,256,2000,8000,实测
+chat-16,16,512,256,2000,8000,实测
