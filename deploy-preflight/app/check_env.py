@@ -27,6 +27,29 @@ def mem_gb():
     if sys.platform == "darwin":
         v = cmd("sysctl -n hw.memsize")
         return round(int(v) / 1024 ** 3, 1) if v.isdigit() else 0.0
+    if sys.platform.startswith("win"):
+        # Windows 没有 /proc，用 Win32 GlobalMemoryStatusEx 拿物理内存
+        try:
+            import ctypes
+
+            class MEMORYSTATUSEX(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong),
+                            ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong),
+                            ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong),
+                            ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+
+            st = MEMORYSTATUSEX()
+            st.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+            if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)):
+                return round(st.ullTotalPhys / 1024 ** 3, 1)
+        except Exception:
+            pass
+        return 0.0
     if os.path.exists("/proc/meminfo"):
         for line in open("/proc/meminfo"):
             if "MemTotal" in line:
@@ -60,6 +83,12 @@ def ntp_ok():
     """时间不同步会导致 token 计费、日志审计、证书全乱，政企验收会查。"""
     if platform.system() == "Darwin":
         return "macOS 默认 time.apple.com（未逐项校验）"
+    if platform.system() == "Windows":
+        out = cmd("w32tm /query /status")
+        if not out:
+            return "w32tm 查不到（时间服务未运行或权限不足，需手动核对时间源）"
+        src = re.search(r"Source:\s*(\S.*)", out)
+        return "时间源 %s（w32tm 可查）" % (src.group(1).strip() if src else "未知")
     if shutil.which("timedatectl"):
         t = cmd("timedatectl show -p NTPSynchronized --value")
         return {"yes": "已同步", "no": "未同步"}.get(t, "未知")
@@ -67,6 +96,10 @@ def ntp_ok():
 
 
 def firewall_note():
+    if platform.system() == "Windows":
+        out = cmd("netsh advfirewall show allprofiles state")
+        states = re.findall(r"\b(ON|OFF)\b", out)
+        return ("Windows 防火墙：%s（推理端口需放行）" % "/".join(states)) if states else "Windows 防火墙：状态未取到"
     if platform.system() == "Linux" and shutil.which("systemctl"):
         s = cmd("systemctl is-active firewalld")
         return "firewalld %s（需放行推理端口）" % (s or "未知")
