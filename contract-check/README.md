@@ -24,7 +24,7 @@
 python3 app/main.py        # 报告写到 out/report.md
 ```
 
-首次运行若 `out/pdfs/` 为空，会自动生成三份样例合同（需要 reportlab，只用来造数据，解析不依赖它）。`app/data/contracts.csv` 是与这三份合同对应的真值表。
+首次运行若 `out/pdfs/` 为空，会自动生成三份样例合同。造这三份 PDF 需要 `reportlab`（`pip install reportlab`），解析本身不依赖它：没装库时报告会直接写"PDF 抽取未执行"，测试里跳过那 2 个造 PDF 的用例，不会假装跑过。`app/data/contracts.csv` 是与这三份合同对应的真值表。
 
 ## 已知问题
 

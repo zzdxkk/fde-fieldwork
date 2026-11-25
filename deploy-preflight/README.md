@@ -50,6 +50,17 @@ python3 app/check_env.py     # 回填压测结果到报告
 
 `app/bench.py` 不带任何硬编码延迟，测的就是这台机器当下的真实表现。
 
+## 平台差异
+
+| 项 | macOS | Windows | Linux |
+|---|---|---|---|
+| 内存 | `sysctl hw.memsize` | `GlobalMemoryStatusEx` | `/proc/meminfo` |
+| 时间源 | 默认 time.apple.com | `w32tm /query /status`（服务没跑就报"查不到"） | `timedatectl` |
+| 防火墙 | 应用防火墙默认开 | `netsh advfirewall show allprofiles state` | `firewalld` |
+| GPU | 无 NVIDIA 卡则报"未检测到" | 同左，靠 `nvidia-smi` 是否存在 | 同左 |
+
+Windows 上第一次跑出来的内存是 0.0GB（只写了 macOS/Linux 分支），这是换机验证时发现的，已修。教训是：体检工具自己也要先被体检一遍。
+
 ## 已知问题
 
 - macOS 上拿不到 NVIDIA 驱动侧 CUDA 版本，只能报"未检测到"。

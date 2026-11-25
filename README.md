@@ -30,6 +30,22 @@ cd contract-check && python3 app/main.py
 cd <任一目录> && python3 -m unittest discover -s tests
 ```
 
+## 复现记录
+
+| 机器 | 日期 | 结果 |
+|---|---|---|
+| macOS（开发机） | 2026-11-25 | 5 套全部跑通，24 个单元测试全绿 |
+| Windows 10 + Python 3.13（干净机器，从本仓库下载后直接跑，未改代码） | 2026-11-25 | 先失败、修完再全绿，见下 |
+
+Windows 那台机器上暴露了两个只在换机时才出现的问题，都已修：
+
+1. `deploy-preflight` 的内存检查返回 `0.0` —— 原来只读了 macOS 的 `sysctl` 和 Linux 的 `/proc/meminfo`，Windows 没有这两样。改成 Win32 `GlobalMemoryStatusEx` 后读到 15.9GB。顺带补了 `w32tm`（时间源）和 `netsh advfirewall`（防火墙）两条 Windows 分支。
+2. `contract-check` 的测试在没装 reportlab 的机器上整包导入失败 —— 因为测试文件顶层就 `import make_pdfs`。改成按用例懒加载、缺库时 skip 那 2 个造 PDF 的用例，其余 4 个照常跑。
+
+修完的结果：24 个用例在 Windows 上也全绿；装上 reportlab 后，合同字段抽取在本机重新生成样例 PDF 再抽取，仍是 96.3%（26/27）。01/02/04 的指标（65.1%、81.8/100/33.3、90.0/82.5/57.5）与 macOS 完全一致，说明这些逻辑不依赖平台。
+
+没在 Windows 上重跑的：`deploy-preflight` 的压测（本机是虚拟桌面，测出来的数字没有交付参考价值，仍以 macOS 那组为准）。
+
 ## 关于数字
 
 - 所有准确率都在自己构造的样例数据上算，样本量和切分方式写在各个 README 里，报告的"口径"一节也写了。

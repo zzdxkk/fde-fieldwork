@@ -2,7 +2,15 @@ import os, sys, unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "app"))
 import main as m
 import pdf_extract as pe
-import make_pdfs
+
+def _make_pdfs():
+    """reportlab 只用于造样例 PDF；缺库时跳过相关用例，不让整套测试导入失败。"""
+    try:
+        import make_pdfs
+        return make_pdfs
+    except ModuleNotFoundError:
+        raise unittest.SkipTest("缺 reportlab，跳过样例 PDF 生成（pip install reportlab）")
+
 
 class T(unittest.TestCase):
     def test_grade_two_hard_high(self):
@@ -21,7 +29,8 @@ class T(unittest.TestCase):
     def test_pdf_field_extract(self):
         path = os.path.join(m.PDFS, "contract_A.pdf")
         if not os.path.exists(path):
-            make_pdfs.build("contract_A", make_pdfs.TRUTH["contract_A"])
+            mp = _make_pdfs()
+            mp.build("contract_A", mp.TRUTH["contract_A"])
         pages = pe.extract_pages(path)
         f, where = pe.parse_fields(pages)
         self.assertGreaterEqual(len(pages), 2)
@@ -31,7 +40,8 @@ class T(unittest.TestCase):
     def test_pdf_defect_detected(self):
         path = os.path.join(m.PDFS, "contract_C.pdf")
         if not os.path.exists(path):
-            make_pdfs.build("contract_C", make_pdfs.TRUTH["contract_C"])
+            mp = _make_pdfs()
+            mp.build("contract_C", mp.TRUTH["contract_C"])
         f, _ = pe.parse_fields(pe.extract_pages(path))
         self.assertNotIn("warranty_months", f)   # 字段名拼错必须抽不到，不能猜
 
