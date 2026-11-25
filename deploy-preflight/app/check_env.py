@@ -128,9 +128,9 @@ def main():
 
     info = [
         ("操作系统", "%s %s" % (platform.system(), platform.release()), "—"),
-        ("Python", sys.version.split()[0], "≥3.10 才支持新版 vLLM"),
+        ("Python", sys.version.split()[0], ">=3.10 才支持新版 vLLM"),
         ("CPU 逻辑核", cpu, "决定无 GPU 时的并发上限"),
-        ("内存 GB", mem_gb(), "7B-Q4 需 ≥16GB，含 OS 缓冲建议 32GB"),
+        ("内存 GB", mem_gb() or "未检测", "7B-Q4 需 ≥16GB，含 OS 缓冲建议 32GB"),
         ("可用磁盘 GB", free_gb, "7B-Q4 权重约 4.7GB，镜像+wheel 另需 8GB"),
         ("Docker", shutil.which("docker") or "未安装", "政企现场多用容器，无则走原生"),
         ("GPU 型号/显存/驱动", "；".join(gpus) if gpus else "未检测到 NVIDIA GPU", "无 GPU → CPU 量化方案"),
@@ -150,12 +150,17 @@ def main():
     elif gpu:
         stack, model, why = "vLLM 或 llama.cpp（按显存）", "Qwen2.5-7B-Instruct（AWQ 4bit）", "显存 8–24GB，需量化；量化后并发与精度都要重测"
     elif docker:
-        stack, model, why = "Ollama（Docker）", "Qwen2.5-3B-Instruct（Q4_K_M）", "无 GPU，3B 量化在 CPU 上才勉强可用；7B 在 CPU 上不是「慢」，是不可用"
+        stack, model, why = "Ollama（Docker）", "Qwen2.5-3B-Instruct（Q4_K_M）", "无 GPU，3B 量化在 CPU 上才勉强可用；7B 在 CPU 上不是「慢」，是不可用/不可接受"
     else:
         stack, model, why = "llama.cpp 原生", "Qwen2.5-3B-Instruct（Q4）", "无容器，走原生二进制，脚本需手写"
 
     L = ["# 私有化部署「到场前」环境体检与选型报告\n"]
     L.append("检测方式：本机命令实测（非人工口头确认） ｜ 生成时间：本次运行\n")
+    L.append("运行环境：%s %s / %s / Python %s\n"
+             % (platform.system(), platform.release(), platform.machine(),
+                sys.version.split()[0]))
+    L.append("口径：取不到的项一律写「未检测」，不填 0、不填估算值——体检报告里出现 0，"
+             "会被当成「客户机器真的没有」，比空着更危险。\n")
     L.append("\n## 一、环境体检（11 项，其中 4 项是最容易漏掉、但现场一定炸的）\n")
     L.append("| 检查项 | 实测值 | 为什么查它 |")
     L.append("|---|---|---|")
